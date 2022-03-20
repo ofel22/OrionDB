@@ -1,0 +1,630 @@
+Public Const BOOKMARK_IDENTIFIER_DATA = "odb_"
+Public Const BOOKMARK_DELIMITER = "_"
+
+' NOTE:
+' xlErrDiv0  (= 2007) returns a #DIV/0! error.
+' xlErrNA    (= 2042) returns a #N/A error.
+' xlErrName  (= 2029) returns a #NAME? error.
+' xlErrNull  (= 2000) returns a #NULL! error.
+' xlErrNum   (= 2036) returns a #NUM! error.
+' xlErrRef   (= 2023) returns a #REF! error.
+' xlErrValue (= 2015) returns a #VALUE! error.
+
+Option Explicit
+Private Function IsExcelCall() As Boolean
+    Dim callRng As Range
+    
+    On Error Resume Next
+    Set callRng = Application.Caller
+    On Error GoTo 0
+    IsExcelCall = Not callRng Is Nothing
+End Function
+Private Function DirectionIndexCheck(DirectionIndex As Integer) As Boolean
+    DirectionIndexCheck = DirectionIndex >= 0 And DirectionIndex <= 3
+End Function
+Private Function GetColumnsRange(TargetRange As Range, TargetColumn As Integer, Optional ColumnCount As Integer = 1, Optional TargetSheet As Worksheet) As Range
+    If TargetSheet Is Nothing Then
+        Set TargetSheet = TargetRange.Parent
+    End If
+    Set GetColumnsRange = TargetSheet.Range(TargetRange(1, TargetColumn), TargetRange(TargetRange.Rows.Count, TargetColumn - 1 + ColumnCount))
+End Function
+Function ODB_MAJORS_INTEREST_DATA_RANGE() As Range
+    Application.Volatile
+    Set ODB_MAJORS_INTEREST_DATA_RANGE = ThisWorkbook.Names(DATA_MAJORS_INTEREST_RANGE_NAME).RefersToRange
+End Function
+Function ODB_CLASS_DATA_RANGE() As Range
+    Application.Volatile
+    Set ODB_CLASS_DATA_RANGE = ThisWorkbook.Names(DATA_CLASS_RANGE_NAME).RefersToRange
+End Function
+Function ODB_CLASS_DATA_HEADER_RANGE() As Range
+    Application.Volatile
+    Set ODB_CLASS_DATA_HEADER_RANGE = ThisWorkbook.Names(DATA_HEADER_CLASS_RANGE_NAME).RefersToRange
+End Function
+Function ODB_TEACHER_DATA_RANGE() As Range
+    Application.Volatile
+    Set ODB_TEACHER_DATA_RANGE = ThisWorkbook.Names(DATA_TEACHER_RANGE_NAME).RefersToRange
+End Function
+Function ODB_TEACHER_DATA_HEADER_RANGE() As Range
+    Application.Volatile
+    Set ODB_TEACHER_DATA_HEADER_RANGE = ThisWorkbook.Names(DATA_HEADER_TEACHER_RANGE_NAME).RefersToRange
+End Function
+Function ODB_DATA_RANGE() As Range
+    Application.Volatile
+    Set ODB_DATA_RANGE = ThisWorkbook.Names(DATA_STUDENT_RANGE_NAME).RefersToRange
+End Function
+Function ODB_DATA_HEADER_RANGE() As Range
+    Application.Volatile
+    Set ODB_DATA_HEADER_RANGE = ThisWorkbook.Names(DATA_HEADER_STUDENT_RANGE_NAME).RefersToRange
+End Function
+Function ODB_GET_RANGE_ROWS(TargetRange As Range, TargetRow As Integer) As Range
+    Application.Volatile
+    Set ODB_GET_RANGE_ROWS = TargetRange.Rows(TargetRow)
+End Function
+Function ODB_GET_RANGE_COLUMNS(TargetRange As Range, TargetColumn As Integer) As Range
+    Application.Volatile
+    Set ODB_GET_RANGE_COLUMNS = TargetRange.Columns(TargetColumn)
+End Function
+Function ODB_GET_CELL_CONTAIN(FindValue As String, TargetRange As Range) As Range
+    Application.Volatile
+    Set ODB_GET_CELL_CONTAIN = TargetRange.Find(FindValue, LookIn:=xlValues, LookAt:=xlWhole)
+End Function
+Function ODB_GET_ROW_RELATIVE(TargetCell As Range, TargetRange As Range) As Integer
+    Application.Volatile
+    ODB_GET_ROW_RELATIVE = TargetCell.row - TargetRange.row + 1
+End Function
+Function ODB_GET_COLUMN_RELATIVE(TargetCell As Range, TargetRange As Range) As Integer
+    Application.Volatile
+    ODB_GET_COLUMN_RELATIVE = TargetCell.Column - TargetRange.Column + 1
+End Function
+Function ODB_GET_DATA_SCORES_KNOWLEDGE(DataRow) As Variant
+    Dim scoreVar() As Single, c As Integer, i As Integer
+    
+    Application.Volatile
+    c = DATA_STUDENT_SCORES_START_COLUMN
+    For i = 1 To DATA_STUDENT_COURSES_COUNT
+        ReDim Preserve scoreVar(1 To i)
+        scoreVar(i) = ODB_DATA_RANGE(DataRow, c).Value
+        c = c + 1 + DATA_STUDENT_SCORE_COURSE_COLUMN_GAP
+    Next i
+    ODB_GET_DATA_SCORES_KNOWLEDGE = scoreVar
+End Function
+Function ODB_GET_DATA_SCORES_SKILL(DataRow) As Variant
+    Dim scoreVar() As Single, c As Integer, i As Integer
+    
+    Application.Volatile
+    c = DATA_STUDENT_SCORES_START_COLUMN + 1 + DATA_STUDENT_SCORE_TYPE_COLUMN_GAP
+    For i = 1 To DATA_STUDENT_COURSES_COUNT
+        ReDim Preserve scoreVar(1 To i)
+        scoreVar(i) = ODB_DATA_RANGE(DataRow, c).Value
+        c = c + 1 + DATA_STUDENT_SCORE_COURSE_COLUMN_GAP
+    Next i
+    ODB_GET_DATA_SCORES_SKILL = scoreVar
+End Function
+Function ODB_GET_DATA_SCORES_ALL(DataRow) As Variant
+    Dim scoreVar() As Single, c As Integer, i As Integer
+    
+    Application.Volatile
+    c = DATA_STUDENT_SCORES_START_COLUMN
+    For i = 1 To DATA_STUDENT_COURSES_COUNT * 2
+        ReDim Preserve scoreVar(1 To i)
+        scoreVar(i) = ODB_DATA_RANGE(DataRow, c).Value
+        c = c + 1 + DATA_STUDENT_SCORE_TYPE_COLUMN_GAP
+    Next i
+    ODB_GET_DATA_SCORES_ALL = scoreVar
+End Function
+Function ODB_GET_DATA_CLASS_TEACHER_NAME(DataRow As Integer, Optional IncludeDegree As Boolean = True) As String
+    Dim frontDeg As String, backDeg As String, cel As Range, cel2 As Range, cel3 As Range
+    
+    Application.Volatile
+    Set cel = PickCellContain(GetColumnsRange(ODB_CLASS_DATA_RANGE, DATA_CLASS_INDEX_COLUMN_START), ODB_DATA_RANGE(DataRow, DATA_STUDENT_CLASS_INDEX_1_COLUMN).Text, True)
+    If cel Is Nothing Then Exit Function
+    Set cel2 = PickAdjCellContainMerged(cel, ODB_DATA_RANGE(DataRow, DATA_STUDENT_CLASS_INDEX_2_COLUMN).Text, True)
+    If cel2 Is Nothing Then Exit Function
+    Set cel3 = PickAdjCellContainMerged(cel2, ODB_DATA_RANGE(DataRow, DATA_STUDENT_CLASS_INDEX_3_COLUMN).Text, True)
+    If cel3 Is Nothing Then Exit Function
+    ODB_GET_DATA_CLASS_TEACHER_NAME = ODB_CLASS_DATA_RANGE(ODB_GET_ROW_RELATIVE(cel3, ODB_CLASS_DATA_RANGE), DATA_CLASS_TEACHER_NAME_COLUMN).Text
+    If IncludeDegree Then
+        Set cel = PickCellContain(GetColumnsRange(ODB_TEACHER_DATA_RANGE, DATA_TEACHER_NAME_COLUMN), ODB_GET_DATA_CLASS_TEACHER_NAME, True)
+        frontDeg = ODB_TEACHER_DATA_RANGE(ODB_GET_ROW_RELATIVE(cel, ODB_TEACHER_DATA_RANGE), DATA_TEACHER_DEGREE_FRONT_COLUMN).Text
+        backDeg = ODB_TEACHER_DATA_RANGE(ODB_GET_ROW_RELATIVE(cel, ODB_TEACHER_DATA_RANGE), DATA_TEACHER_DEGREE_BACK_COLUMN).Text
+        If Len(frontDeg) > 0 Then frontDeg = frontDeg & " "
+        If Len(backDeg) > 0 Then backDeg = " " & backDeg
+        ODB_GET_DATA_CLASS_TEACHER_NAME = frontDeg & ODB_GET_DATA_CLASS_TEACHER_NAME & backDeg
+    End If
+End Function
+Function ODB_GET_DATA_CLASS_TEACHER_INDEX(DataRow As Integer) As String
+    Dim cel As Range, cel2 As Range, cel3 As Range
+    
+    Application.Volatile
+    Set cel = PickCellContain(GetColumnsRange(ODB_CLASS_DATA_RANGE, DATA_CLASS_INDEX_COLUMN_START), ODB_DATA_RANGE(DataRow, DATA_STUDENT_CLASS_INDEX_1_COLUMN).Text, True)
+    If cel Is Nothing Then Exit Function
+    Set cel2 = PickAdjCellContainMerged(cel, ODB_DATA_RANGE(DataRow, DATA_STUDENT_CLASS_INDEX_2_COLUMN).Text, True)
+    If cel2 Is Nothing Then Exit Function
+    Set cel3 = PickAdjCellContainMerged(cel2, ODB_DATA_RANGE(DataRow, DATA_STUDENT_CLASS_INDEX_3_COLUMN).Text, True)
+    If cel3 Is Nothing Then Exit Function
+    ODB_GET_DATA_CLASS_TEACHER_INDEX = ODB_CLASS_DATA_RANGE(ODB_GET_ROW_RELATIVE(cel3, ODB_CLASS_DATA_RANGE), DATA_CLASS_TEACHER_INDEX_COLUMN).Text
+End Function
+Function ODB_GET_DATA_TEACHER_INDEX(TeacherName As String) As String
+    Dim cel As Range
+    
+    Application.Volatile
+    If Len(TeacherName) = 0 Then Exit Function
+    Set cel = PickCellContain(GetColumnsRange(ODB_TEACHER_DATA_RANGE, DATA_TEACHER_NAME_COLUMN), TeacherName, True)
+    If cel Is Nothing Then Exit Function
+    ODB_GET_DATA_TEACHER_INDEX = ODB_TEACHER_DATA_RANGE(ODB_GET_ROW_RELATIVE(cel, ODB_TEACHER_DATA_RANGE), DATA_TEACHER_INDEX_COLUMN).Text
+End Function
+Function ODB_GET_DATA_MAJORS_INTEREST(DataRow As Integer, InterestIndex As Integer) As String
+    Dim cel As Range
+    
+    Application.Volatile
+    Set cel = PickCellContain(GetColumnsRange(ODB_MAJORS_INTEREST_DATA_RANGE, DATA_MAJORS_INTEREST_MAJOR_NAME_COLUMN), ODB_DATA_RANGE(DataRow, DATA_STUDENT_CLASS_INDEX_2_COLUMN).Text, True)
+    If cel Is Nothing Then Exit Function
+    If InterestIndex > cel.MergeArea.Rows.Count Or InterestIndex <= 0 Then Exit Function
+    ODB_GET_DATA_MAJORS_INTEREST = ODB_MAJORS_INTEREST_DATA_RANGE(GetRowRelative(ODB_MAJORS_INTEREST_DATA_RANGE, cel) - 1 + InterestIndex, DATA_MAJORS_INTEREST_NAME_COLUMN).Text
+End Function
+Function ODB_GET_DATA_CLASS_MATES_BY_COLUMN() As Variant
+    
+    Application.Volatile
+    'CONTINUE HERE
+End Function
+Private Function KeKata(Nomor) As String
+    Dim TrjKata As Variant
+    
+    TrjKata = Array("", "satu", "dua", "tiga", "empat", "lima", "enam", "tujuh", "delapan", "sembilan")
+    KeKata = TrjKata(Nomor)
+End Function
+' Fungsi Terbilang dengan VBA untuk MS Office
+' Ditulis oleh maseko, di-edit oleh Ofel (13-06-2020)
+Function ODB_Terbilang(NilaiAngka As Single, Optional Style As Integer = 4, Optional Satuan As String = "") As String
+    Dim des1 As String, des2 As String, Angka As Integer, Koma As String, bilang As String
+    Dim No1 As String, No2 As String, No3 As String, No4 As String, No5 As String
+    Dim No6 As String, No7 As String, No8 As String, No9 As String, No10 As String
+    Dim No11 As String, No12 As String, No13 As String, No14 As String, No15 As String
+    Dim Nomor1 As String, Nomor2 As String, Nomor3 As String, Nomor4 As String, Nomor5 As String
+    Dim Nomor6 As String, Nomor7 As String, Nomor8 As String, Nomor9 As String, Nomor10 As String
+    Dim Nomor11 As String, Nomor12 As String, Nomor13 As String, Nomor14 As String, Nomor15 As String
+    
+    Angka = Fix(Abs(NilaiAngka))
+    des1 = Mid(Abs(NilaiAngka), Len(Angka) + 2, 1)
+    des2 = Mid(Abs(NilaiAngka), Len(Angka) + 3, 1)
+    
+    If des2 = "" Then
+        If des1 = "" Or des1 = "0" Then
+            Koma = ""
+        Else
+            Koma = " koma " & KeKata(des1)
+        End If
+    ElseIf des2 = "0" Then
+        If des1 = "0" Then
+            Koma = ""
+        ElseIf des1 = "1" Then
+            Koma = " koma sepuluh"
+        Else
+            Koma = " koma " & KeKata(des1) & " puluh"
+        End If
+    Else
+        If des1 = "0" Then
+            Koma = " koma nol " & KeKata(des2)
+        ElseIf des1 = "1" Then
+            If des2 = "1" Then
+                Koma = " koma sebelas"
+            Else
+                Koma = " koma " & KeKata(des2) & " belas"
+            End If
+        Else
+            Koma = " koma " & KeKata(des1) & " puluh " & KeKata(des2)
+        End If
+    End If
+    
+    No1 = Left(Right(Angka, 1), 1)
+    No2 = Left(Right(Angka, 2), 1)
+    No3 = Left(Right(Angka, 3), 1)
+    No4 = Left(Right(Angka, 4), 1)
+    No5 = Left(Right(Angka, 5), 1)
+    No6 = Left(Right(Angka, 6), 1)
+    No7 = Left(Right(Angka, 7), 1)
+    No8 = Left(Right(Angka, 8), 1)
+    No9 = Left(Right(Angka, 9), 1)
+    No10 = Left(Right(Angka, 10), 1)
+    No11 = Left(Right(Angka, 11), 1)
+    No12 = Left(Right(Angka, 12), 1)
+    No13 = Left(Right(Angka, 13), 1)
+    No14 = Left(Right(Angka, 14), 1)
+    No15 = Left(Right(Angka, 15), 1)
+    
+    'Satuan
+    If Len(Angka) >= 1 Then
+        If Len(Angka) = 1 And No1 = 1 Then
+            Nomor1 = "satu"
+        ElseIf Len(Angka) = 1 And No1 = 0 Then
+            Nomor1 = "Nol"
+        ElseIf No2 = "1" Then
+            If No1 = "1" Then
+                Nomor1 = "sebelas"
+            ElseIf No1 = "0" Then
+                Nomor1 = "sepuluh"
+            Else
+                Nomor1 = KeKata(No1) & " belas"
+            End If
+        Else
+            Nomor1 = KeKata(No1)
+        End If
+    Else
+        Nomor1 = ""
+    End If
+    
+    'Puluhan
+    If Len(Angka) >= 2 Then
+        If No2 = 1 Or No2 = "0" Then
+            Nomor2 = ""
+        Else
+            Nomor2 = KeKata(No2) & " puluh "
+        End If
+    Else
+        Nomor2 = ""
+    End If
+    
+    'Ratusan
+    If Len(Angka) >= 3 Then
+        If No3 = "1" Then
+            Nomor3 = "seratus "
+        ElseIf No3 = "0" Then
+            Nomor3 = ""
+        Else
+            Nomor3 = KeKata(No3) & " ratus "
+        End If
+    Else
+        Nomor3 = ""
+    End If
+    
+    'Ribuan
+    If Len(Angka) >= 4 Then
+        If No6 = "0" And No5 = "0" And No4 = "0" Then
+            Nomor4 = ""
+        ElseIf (No4 = "1" And Len(Angka) = 4) Or (No6 = "0" And No5 = "0" And No4 = "1") Then
+            Nomor4 = "seribu "
+        ElseIf No5 = "1" Then
+            If No4 = "1" Then
+                Nomor4 = "sebelas ribu "
+            ElseIf No4 = "0" Then
+                Nomor4 = "sepuluh ribu "
+            Else
+                Nomor4 = KeKata(No4) & " belas ribu "
+            End If
+        Else
+            Nomor4 = KeKata(No4) & " ribu "
+        End If
+    Else
+        Nomor4 = ""
+    End If
+    
+    'Puluhan ribu
+    If Len(Angka) >= 5 Then
+        If No5 = "1" Or No5 = "0" Then
+            Nomor5 = ""
+        Else
+            Nomor5 = KeKata(No5) & " puluh "
+        End If
+    Else
+        Nomor5 = ""
+    End If
+    
+    'Ratusan ribu
+    If Len(Angka) >= 6 Then
+        If No6 = "1" Then
+            Nomor6 = "seratus "
+        ElseIf No6 = "0" Then
+            Nomor6 = ""
+        Else
+            Nomor6 = KeKata(No6) & " ratus "
+        End If
+    Else
+        Nomor6 = ""
+    End If
+    
+    'Jutaan
+    If Len(Angka) >= 7 Then
+        If No9 = "0" And No8 = "0" And No7 = "0" Then
+            Nomor7 = ""
+        ElseIf No7 = "1" And Len(Angka) = 7 Then
+            Nomor7 = "satu juta "
+        ElseIf No8 = "1" Then
+            If No7 = "1" Then
+                Nomor7 = "sebelas juta "
+            ElseIf No7 = "0" Then
+                Nomor7 = "sepuluh juta "
+            Else
+                Nomor7 = KeKata(No7) & " belas juta "
+            End If
+        Else
+            Nomor7 = KeKata(No7) & " juta "
+        End If
+    Else
+        Nomor7 = ""
+    End If
+    
+    'Puluhan juta
+    If Len(Angka) >= 8 Then
+        If No8 = "1" Or No8 = "0" Then
+            Nomor8 = ""
+        Else
+            Nomor8 = KeKata(No8) & " puluh "
+        End If
+    Else
+        Nomor8 = ""
+    End If
+    
+    'Ratusan juta
+    If Len(Angka) >= 9 Then
+        If No9 = "1" Then
+            Nomor9 = "seratus "
+        ElseIf No9 = "0" Then
+            Nomor9 = ""
+        Else
+            Nomor9 = KeKata(No9) & " ratus "
+        End If
+    Else
+        Nomor9 = ""
+    End If
+    
+    'Milyar
+    If Len(Angka) >= 10 Then
+        If No12 = "0" And No11 = "0" And No10 = "0" Then
+            Nomor10 = ""
+        ElseIf No10 = "1" And Len(Angka) = 10 Then
+            Nomor10 = "satu milyar "
+        ElseIf No11 = "1" Then
+            If No10 = "1" Then
+                Nomor10 = "sebelas milyar "
+            ElseIf No10 = "0" Then
+                Nomor10 = "sepuluh milyar "
+            Else
+                Nomor10 = KeKata(No10) & " belas milyar "
+            End If
+        Else
+            Nomor10 = KeKata(No10) & " milyar "
+        End If
+    Else
+        Nomor10 = ""
+    End If
+    
+    'Puluhan milyar
+    If Len(Angka) >= 11 Then
+        If No11 = "1" Or No11 = "0" Then
+            Nomor11 = ""
+        Else
+            Nomor11 = KeKata(No11) & " puluh "
+        End If
+    Else
+        Nomor11 = ""
+    End If
+    
+    'Ratusan milyar
+    If Len(Angka) >= 12 Then
+        If No12 = "1" Then
+            Nomor12 = "seratus "
+        ElseIf No12 = "0" Then
+            Nomor12 = ""
+        Else
+            Nomor12 = KeKata(No12) & " ratus "
+        End If
+    Else
+        Nomor12 = ""
+    End If
+    
+    'Triliun
+    If Len(Angka) >= 13 Then
+        If No15 = "0" And No14 = "0" And No13 = "0" Then
+            Nomor13 = ""
+        ElseIf No13 = "1" And Len(Angka) = 13 Then
+            Nomor13 = "satu triliun "
+        ElseIf No14 = "1" Then
+            If No13 = "1" Then
+                Nomor13 = "sebelas triliun "
+            ElseIf No13 = "0" Then
+                Nomor13 = "sepuluh triliun "
+            Else
+                Nomor13 = KeKata(No13) & " belas triliun "
+            End If
+        Else
+            Nomor13 = KeKata(No13) & " triliun "
+        End If
+    Else
+        Nomor13 = ""
+    End If
+    
+    'Puluhan triliun
+    If Len(Angka) >= 14 Then
+        If No14 = "1" Or No14 = "0" Then
+            Nomor14 = ""
+        Else
+            Nomor14 = KeKata(No14) & " puluh "
+        End If
+    Else
+        Nomor14 = ""
+    End If
+    
+    'Ratusan triliun
+    If Len(Angka) >= 15 Then
+        If No15 = "1" Then
+            Nomor15 = "seratus "
+        ElseIf No15 = "0" Then
+            Nomor15 = ""
+        Else
+            Nomor15 = KeKata(No15) & " ratus "
+        End If
+    Else
+        Nomor15 = ""
+    End If
+    
+    If Len(Angka) > 15 Then
+        bilang = "Digit Angka Terlalu Banyak"
+    Else
+        If IsNull(NilaiAngka) Then
+            bilang = ""
+        ElseIf NilaiAngka < 0 Then
+            bilang = "minus " & Trim(Nomor15 & Nomor14 & Nomor13 & Nomor12 & Nomor11 & Nomor10 & Nomor9 & Nomor8 & Nomor7 _
+            & Nomor6 & Nomor5 & Nomor4 & Nomor3 & Nomor2 & Nomor1 & Koma & " " & Satuan)
+        Else
+            bilang = Trim(Nomor15 & Nomor14 & Nomor13 & Nomor12 & Nomor11 & Nomor10 & Nomor9 & Nomor8 & Nomor7 _
+            & Nomor6 & Nomor5 & Nomor4 & Nomor3 & Nomor2 & Nomor1 & Koma & " " & Satuan)
+        End If
+    End If
+    
+    If Style = 4 Then
+        ODB_Terbilang = StrConv(Left(bilang, 1), 1) & StrConv(Mid(bilang, 2, 1000), 2)
+    Else
+        ODB_Terbilang = StrConv(bilang, Style)
+    End If
+    ODB_Terbilang = Replace(ODB_Terbilang, "  ", " ", 1, 1000, vbTextCompare)
+End Function
+Function GetRangeCellsMerged(TargetRange As Range) As Variant
+    Dim i As Integer
+    Dim cel As Range, cel2 As Range
+    Dim rng() As Range, rngList() As String
+    
+    Application.Volatile
+    ReDim rng(0)
+    ReDim rngList(0)
+    For Each cel In TargetRange
+        If Not IsInArray(cel.Address, rngList) Then
+            For Each cel2 In cel.MergeArea
+                If Not IsInArray(cel2.Address, rngList) Then
+                    i = UBound(rngList) + 1
+                    ReDim Preserve rngList(i)
+                    rngList(i) = cel2.Address
+                End If
+            Next cel2
+            i = UBound(rng) + 1
+            ReDim Preserve rng(i)
+            Set rng(i) = cel
+        End If
+    Next cel
+    GetRangeCellsMerged = rng
+End Function
+Function GetCellAdjRange(TargetCell As Range, Optional DirectionIndex As Integer = 0) As Variant
+    Dim startCel As Range, endCel As Range
+    
+    Application.Volatile
+    If Not DirectionIndexCheck(DirectionIndex) Then
+        If IsExcelCall Then
+            GetCellAdjRange = CVErr(xlErrRef) ' Need fix?
+        Else
+            Set GetCellAdjRange = Nothing
+        End If
+        Exit Function
+    End If
+    
+    If DirectionIndex = 0 Then
+        Set startCel = TargetCell.Offset(0, 1)
+        Set endCel = startCel(CountMergedRows(TargetCell), 1)
+    ElseIf DirectionIndex = 1 Then
+        Set startCel = TargetCell.Offset(1, 0)
+        Set endCel = startCel(1, CountMergedColumns(TargetCell))
+    ElseIf DirectionIndex = 2 Then
+        Set startCel = TargetCell.Offset(0, -1)
+        Set endCel = startCel(CountMergedRows(TargetCell), 1)
+    ElseIf DirectionIndex = 3 Then
+        Set startCel = TargetCell.Offset(-1, 0)
+        Set endCel = startCel(1, CountMergedColumns(TargetCell))
+    End If
+    Set GetCellAdjRange = Range(startCel, endCel)
+End Function
+Function IsAdjCellsContainMerged(TargetCell As Range, TargetText As String, Optional WholeSearch As Boolean = False, Optional DirectionIndex As Integer = 0) As Boolean
+    Dim cel As Range, cel2 As Range, adjRng As Range
+    
+    Application.Volatile
+    If DirectionIndexCheck(DirectionIndex) = False Or Len(TargetText) = 0 Then
+        If IsExcelCall Then
+            PickAdjCellContainMerged = CVErr(xlErrRef) ' Need fix?
+        Else
+            IsAdjCellsContainMerged = False
+        End If
+        Exit Function
+    End If
+    
+    Set adjRng = GetCellAdjRange(TargetCell, DirectionIndex)
+    If WholeSearch = True Then
+        For Each cel In adjRng
+            For Each cel2 In cel.MergeArea
+                If cel2.Text = TargetText Then
+                    IsAdjCellsContainMerged = True
+                    Exit For
+                End If
+            Next cel2
+        Next cel
+    Else
+        For Each cel In adjRng
+            For Each cel2 In cel.MergeArea
+                If InStr(1, cel2.Value, TargetText) > 0 Then
+                    IsAdjCellsContainMerged = True
+                    Exit For
+                End If
+            Next cel2
+        Next cel
+    End If
+End Function
+Function PickCellContain(TargetRange As Range, TargetText As String, Optional WholeSearch As Boolean = False) As Range
+    Dim cel As Range
+    
+    Application.Volatile
+    If Len(TargetText) = 0 Then
+        If IsExcelCall Then
+            PickCellContain = CVErr(xlErrRef) ' Need fix?
+        Else
+            Set PickCellContain = Nothing
+        End If
+        Exit Function
+    End If
+    Set PickCellContain = Nothing
+    If WholeSearch = True Then
+        For Each cel In TargetRange
+            If cel.Text = TargetText Then
+                Set PickCellContain = cel
+                Exit For
+            End If
+        Next cel
+    Else
+        For Each cel In TargetRange
+            If InStr(1, cel.Value, TargetText) > 0 Then
+                Set PickCellContain = cel
+                Exit For
+            End If
+        Next cel
+    End If
+End Function
+Function PickAdjCellContainMerged(TargetCell As Range, TargetText As String, Optional WholeSearch As Boolean = False, Optional DirectionIndex As Integer = 0) As Variant
+    Dim cel As Range, cel2 As Range, adjRng As Range
+    
+    Application.Volatile
+    If DirectionIndexCheck(DirectionIndex) = False Or Len(TargetText) = 0 Then
+        If IsExcelCall Then
+            PickAdjCellContainMerged = CVErr(xlErrRef) ' Need fix?
+        Else
+            Set PickAdjCellContainMerged = Nothing
+        End If
+        Exit Function
+    End If
+    
+    Set PickAdjCellContainMerged = Nothing
+    Set adjRng = GetCellAdjRange(TargetCell, DirectionIndex)
+    If WholeSearch = True Then
+        For Each cel In adjRng
+            For Each cel2 In cel.MergeArea
+                If cel2.Text = TargetText Then
+                    Set PickAdjCellContainMerged = cel2
+                    Exit For
+                End If
+            Next cel2
+        Next cel
+    Else
+        For Each cel In adjRng
+            For Each cel2 In cel.MergeArea
+                If InStr(1, cel2.Value, TargetText) > 0 Then
+                    Set PickAdjCellContainMerged = cel2
+                    Exit For
+                End If
+            Next cel2
+        Next cel
+    End If
+End Function
